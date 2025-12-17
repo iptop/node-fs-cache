@@ -1,3 +1,8 @@
+export interface FsKvCacheOptions {
+  /** 目录层数 (2-5)，默认 3 */
+  depth?: number;
+}
+
 /**
  * 基于文件系统的 Key-Value 缓存类
  */
@@ -5,8 +10,9 @@ export class FsKvCache {
   /**
    * 创建缓存实例
    * @param basePath - 缓存文件存储的根目录路径
+   * @param options - 配置选项
    */
-  constructor(basePath: string);
+  constructor(basePath: string, options?: FsKvCacheOptions);
 
   /**
    * 存储键值对

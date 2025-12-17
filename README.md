@@ -24,6 +24,9 @@ import { FsKvCache } from 'fs-kv-cache';
 // 创建缓存实例
 const cache = new FsKvCache('./cache');
 
+// 自定义目录层数 (2-5层，默认3层)
+const cache2 = new FsKvCache('./cache', { depth: 2 });
+
 // 存储数据
 cache.setItem('username', 'john_doe');
 
@@ -41,11 +44,12 @@ cache.removeItem('username');
 
 ## API
 
-### `new FsKvCache(basePath)`
+### `new FsKvCache(basePath, options?)`
 
 创建缓存实例。
 
 - `basePath` - 缓存文件存储的根目录路径
+- `options.depth` - 目录层数，范围 2-5，默认 3
 
 ### `setItem(key, value)`
 
@@ -83,28 +87,25 @@ cache.removeItem('username');
 1. 对 key 进行 MD5 加密
    - 例如：`username` → `14c4b06b824ec593239362517f538b29`
 
-2. 创建 3 层嵌套文件夹
-   - 第 1 位字符作为第 1 层文件夹：`1`
-   - 第 2 位字符作为第 2 层文件夹：`4`
-   - 第 3 位字符作为第 3 层文件夹：`c`
-   - 第 4 位字符作为文件名：`4.pack`
-   - 完整路径：`cache/1/4/c/4.pack`
+2. 根据 depth 创建嵌套目录结构（默认 3 层）
+   - depth=2: `cache/1/4.pack` (最多 256 个文件)
+   - depth=3: `cache/1/4/c.pack` (最多 4,096 个文件)
+   - depth=4: `cache/1/4/c/4.pack` (最多 65,536 个文件)
+   - depth=5: `cache/1/4/c/4/b.pack` (最多 1,048,576 个文件)
 
 ### 文件内容格式
 
-使用 MessagePack 格式存储，文件内容结构：
+使用 MessagePack 格式存储，文件内容为数组结构：
 
 ```javascript
-{
-  [md5Key]: value  // md5Key 为完整的 32 位 MD5 哈希值
-}
+[[md5Buffer, value], ...]  // md5Buffer 为 16 字节的二进制 Buffer
 ```
 
-> **注意**：为最小化存储空间，缓存文件中不存储原始 key，仅存储 MD5 key 和 value。因此本库不提供 key 遍历功能。
+> **注意**：为最小化存储空间，缓存文件中不存储原始 key，仅存储 MD5 二进制和 value。因此本库不提供 key 遍历功能。
 
 ### 哈希冲突处理
 
-当不同的 key 映射到同一个文件时（前 4 位 MD5 相同），多个键值对会存储在同一个文件中，通过完整的 MD5 key 进行区分。
+当不同的 key 映射到同一个文件时（MD5 前几位相同），多个键值对会存储在同一个文件中，通过完整的 MD5 Buffer 进行区分。
 
 ## 设计限制
 

@@ -1,45 +1,55 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { pack, unpack } from 'msgpackr';
+import { Packr } from 'msgpackr';
+
+const packr = new Packr({ useRecords: false });
 
 export class FsKvCache {
   /**
    * @param {string} basePath - 缓存文件存储的根目录路径
+   * @param {object} [options] - 配置选项
+   * @param {number} [options.depth=3] - 目录层数 (2-5)
    */
-  constructor(basePath) {
+  constructor(basePath, options = {}) {
     this.basePath = basePath;
+    this.depth = Math.min(5, Math.max(2, options.depth ?? 3));
     if (!existsSync(basePath)) {
       mkdirSync(basePath, { recursive: true });
     }
   }
 
   /**
-   * 计算 key 的 MD5 哈希值
+   * 计算 key 的 MD5 哈希值（返回 Buffer）
    * @param {string} key
-   * @returns {string}
+   * @returns {{ hex: string, buffer: Buffer }}
    */
   _getMd5(key) {
-    return createHash('md5').update(key).digest('hex');
+    const hash = createHash('md5').update(key);
+    return {
+      hex: hash.copy().digest('hex'),
+      buffer: hash.digest(),
+    };
   }
 
   /**
-   * 根据 MD5 获取文件路径
-   * @param {string} md5
+   * 根据 MD5 hex 获取文件路径
+   * @param {string} hex
    * @returns {string}
    */
-  _getFilePath(md5) {
-    const dir1 = md5[0];
-    const dir2 = md5[1];
-    const dir3 = md5[2];
-    const fileName = md5[3] + '.pack';
-    return join(this.basePath, dir1, dir2, dir3, fileName);
+  _getFilePath(hex) {
+    const parts = [];
+    for (let i = 0; i < this.depth - 1; i++) {
+      parts.push(hex[i]);
+    }
+    parts.push(hex[this.depth - 1] + '.pack');
+    return join(this.basePath, ...parts);
   }
 
   /**
    * 读取文件内容
    * @param {string} filePath
-   * @returns {Object|null}
+   * @returns {Array|null} 返回 [[buffer, value], ...] 数组
    */
   _readFile(filePath) {
     if (!existsSync(filePath)) {
@@ -47,7 +57,7 @@ export class FsKvCache {
     }
     try {
       const buffer = readFileSync(filePath);
-      return unpack(buffer);
+      return packr.unpack(buffer);
     } catch {
       return null;
     }
@@ -56,15 +66,26 @@ export class FsKvCache {
   /**
    * 写入文件内容
    * @param {string} filePath
-   * @param {Object} data
+   * @param {Array} data [[buffer, value], ...]
    */
   _writeFile(filePath, data) {
     const dir = dirname(filePath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    const buffer = pack(data);
+    const buffer = packr.pack(data);
     writeFileSync(filePath, buffer);
+  }
+
+  /**
+   * 在数据数组中查找 key
+   * @param {Array} data
+   * @param {Buffer} keyBuffer
+   * @returns {number} 索引，未找到返回 -1
+   */
+  _findIndex(data, keyBuffer) {
+    if (!data) return -1;
+    return data.findIndex(([k]) => keyBuffer.equals(k));
   }
 
   /**
@@ -73,10 +94,15 @@ export class FsKvCache {
    * @param {*} value
    */
   setItem(key, value) {
-    const md5 = this._getMd5(key);
-    const filePath = this._getFilePath(md5);
-    const data = this._readFile(filePath) || {};
-    data[md5] = value;
+    const { hex, buffer: keyBuffer } = this._getMd5(key);
+    const filePath = this._getFilePath(hex);
+    const data = this._readFile(filePath) || [];
+    const index = this._findIndex(data, keyBuffer);
+    if (index >= 0) {
+      data[index][1] = value;
+    } else {
+      data.push([keyBuffer, value]);
+    }
     this._writeFile(filePath, data);
   }
 
@@ -86,13 +112,11 @@ export class FsKvCache {
    * @returns {*} 存储的值，如果键不存在则返回 null
    */
   getItem(key) {
-    const md5 = this._getMd5(key);
-    const filePath = this._getFilePath(md5);
+    const { hex, buffer: keyBuffer } = this._getMd5(key);
+    const filePath = this._getFilePath(hex);
     const data = this._readFile(filePath);
-    if (data && md5 in data) {
-      return data[md5];
-    }
-    return null;
+    const index = this._findIndex(data, keyBuffer);
+    return index >= 0 ? data[index][1] : null;
   }
 
   /**
@@ -101,10 +125,10 @@ export class FsKvCache {
    * @returns {boolean}
    */
   hasItem(key) {
-    const md5 = this._getMd5(key);
-    const filePath = this._getFilePath(md5);
+    const { hex, buffer: keyBuffer } = this._getMd5(key);
+    const filePath = this._getFilePath(hex);
     const data = this._readFile(filePath);
-    return data !== null && md5 in data;
+    return this._findIndex(data, keyBuffer) >= 0;
   }
 
   /**
@@ -112,12 +136,13 @@ export class FsKvCache {
    * @param {string} key
    */
   removeItem(key) {
-    const md5 = this._getMd5(key);
-    const filePath = this._getFilePath(md5);
+    const { hex, buffer: keyBuffer } = this._getMd5(key);
+    const filePath = this._getFilePath(hex);
     const data = this._readFile(filePath);
-    if (data && md5 in data) {
-      delete data[md5];
-      if (Object.keys(data).length === 0) {
+    const index = this._findIndex(data, keyBuffer);
+    if (index >= 0) {
+      data.splice(index, 1);
+      if (data.length === 0) {
         try {
           unlinkSync(filePath);
         } catch {

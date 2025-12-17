@@ -97,10 +97,10 @@ test('should handle multiple keys in same file', () => {
   });
 });
 
-test('should create correct directory structure', () => {
+test('should create correct directory structure with default depth 3', () => {
   cache.setItem('test', 'value');
   // 'test' 的 MD5: 098f6bcd4621d373cade4e832627b4f6
-  const expectedPath = join(TEST_CACHE_DIR, '0', '9', '8', 'f.pack');
+  const expectedPath = join(TEST_CACHE_DIR, '0', '9', '8.pack');
   assert.strictEqual(existsSync(expectedPath), true);
 });
 
@@ -108,4 +108,40 @@ test('should persist data across instances', () => {
   cache.setItem('persistent', 'data');
   const cache2 = new FsKvCache(TEST_CACHE_DIR);
   assert.strictEqual(cache2.getItem('persistent'), 'data');
+});
+
+test('should support depth 2', () => {
+  const cache2 = new FsKvCache(TEST_CACHE_DIR + '-d2', { depth: 2 });
+  cache2.setItem('test', 'value');
+  // 'test' 的 MD5: 098f6bcd4621d373cade4e832627b4f6
+  const expectedPath = join(TEST_CACHE_DIR + '-d2', '0', '9.pack');
+  assert.strictEqual(existsSync(expectedPath), true);
+  assert.strictEqual(cache2.getItem('test'), 'value');
+  rmSync(TEST_CACHE_DIR + '-d2', { recursive: true, force: true });
+});
+
+test('should support depth 4', () => {
+  const cache4 = new FsKvCache(TEST_CACHE_DIR + '-d4', { depth: 4 });
+  cache4.setItem('test', 'value');
+  // 'test' 的 MD5: 098f6bcd4621d373cade4e832627b4f6
+  const expectedPath = join(TEST_CACHE_DIR + '-d4', '0', '9', '8', 'f.pack');
+  assert.strictEqual(existsSync(expectedPath), true);
+  assert.strictEqual(cache4.getItem('test'), 'value');
+  rmSync(TEST_CACHE_DIR + '-d4', { recursive: true, force: true });
+});
+
+test('should clamp depth to valid range', () => {
+  const cacheMin = new FsKvCache(TEST_CACHE_DIR + '-min', { depth: 1 });
+  cacheMin.setItem('test', 'value');
+  // depth 1 应该被限制为 2
+  const expectedMin = join(TEST_CACHE_DIR + '-min', '0', '9.pack');
+  assert.strictEqual(existsSync(expectedMin), true);
+  rmSync(TEST_CACHE_DIR + '-min', { recursive: true, force: true });
+
+  const cacheMax = new FsKvCache(TEST_CACHE_DIR + '-max', { depth: 10 });
+  cacheMax.setItem('test', 'value');
+  // depth 10 应该被限制为 5
+  const expectedMax = join(TEST_CACHE_DIR + '-max', '0', '9', '8', 'f', '6.pack');
+  assert.strictEqual(existsSync(expectedMax), true);
+  rmSync(TEST_CACHE_DIR + '-max', { recursive: true, force: true });
 });
