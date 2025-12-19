@@ -1,5 +1,5 @@
 {
-  "name": "fs-kv-cache",
+  "name": "node-fs-cache",
   "version": "1.0.0",
   "description": "A lightweight file system based key-value cache with localStorage-like API",
   "type": "module",
