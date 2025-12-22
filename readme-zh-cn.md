@@ -13,13 +13,17 @@
 ## 安装
 
 ```bash
-npm install fs-kv-cache
+npm install @iptop/node-fs-cache
 ```
 
 ## 快速开始
 
 ```javascript
-import { FsKvCache } from 'fs-kv-cache';
+// ESM
+import { FsKvCache } from '@iptop/node-fs-cache';
+
+// CJS
+const { FsKvCache } = require('@iptop/node-fs-cache');
 
 // 创建缓存实例
 const cache = new FsKvCache('./cache');

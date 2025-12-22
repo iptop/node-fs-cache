@@ -15,13 +15,17 @@ A lightweight file system-based Key-Value cache library with a localStorage-like
 ## Installation
 
 ```bash
-npm install fs-kv-cache
+npm install @iptop/node-fs-cache
 ```
 
 ## Quick Start
 
 ```javascript
-import { FsKvCache } from 'fs-kv-cache';
+// ESM
+import { FsKvCache } from '@iptop/node-fs-cache';
+
+// CJS
+const { FsKvCache } = require('@iptop/node-fs-cache');
 
 // Create a cache instance
 const cache = new FsKvCache('./cache');
