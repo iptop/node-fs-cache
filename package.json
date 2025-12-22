@@ -3,19 +3,22 @@
   "version": "1.0.0",
   "description": "A lightweight file system based key-value cache with localStorage-like API",
   "type": "module",
-  "main": "src/index.js",
-  "types": "types/index.d.ts",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./src/index.js",
-      "types": "./types/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
-    "src",
-    "types"
+    "dist"
   ],
   "scripts": {
+    "build": "tsup src/index.js --format cjs,esm --dts",
+    "prepublishOnly": "npm run build",
     "test": "node --test"
   },
   "keywords": [
@@ -32,5 +35,9 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   }
 }
